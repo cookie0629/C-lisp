@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"E:/C-lisp/build/cmake_install.cmake",
-		"E:/C-lisp/build/src/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

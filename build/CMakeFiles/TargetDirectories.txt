@@ -1,4 +1,0 @@
-E:/C-lisp/build/CMakeFiles/ALL_BUILD.dir
-E:/C-lisp/build/CMakeFiles/ZERO_CHECK.dir
-E:/C-lisp/build/src/CMakeFiles/nucleus_core.dir
-E:/C-lisp/build/src/CMakeFiles/c-lisp.dir
