@@ -2,7 +2,10 @@
 file(GLOB_RECURSE SOURCES 
     "runtime/*.c"
     "parser/*.c"
+    "*.c"
 )
+
+list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/main.c")
 
 # Create the core library (libnucleus)
 add_library(nucleus_core ${SOURCES})

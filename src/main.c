@@ -2,6 +2,7 @@
 #include <string.h>
 #include "runtime/nucleus.h"
 #include "parser/parser.h"
+#include "transpiler.h"
 
 void print_usage() {
     printf("Usage: c-lisp [command] [args...]\n");
@@ -38,18 +39,20 @@ int main(int argc, char *argv[]) {
         printf("\n");
     } 
     else if (strcmp(command, "file") == 0) {
-        if (argc < 3) {
-            printf("Error: Missing file path.\n");
-            return 1;
-        }
-        printf("Parsing file: %s\n", argv[2]);
-        LispVal* ast = lisp_parse_file(argv[2]);
-        if (ast) {
-            printf("AST:\n");
-            lisp_print(ast);
-            printf("\n");
-        }
-    } 
+            if (argc < 4) { // Source file and target output file are required.
+                printf("Error: Missing arguments. Usage: file <input.lisp> <output.c>\n");
+                return 1;
+            }
+            printf("Parsing file: %s\n", argv[2]);
+            LispVal* ast = lisp_parse_file(argv[2]);
+            
+            if (ast) {
+                printf("AST generated successfully. Beginning transpilation...\n");
+                TranspilerContext* ctx = transpiler_create();
+                transpile_ast_to_file(ctx, ast, argv[3]);
+                transpiler_free(ctx);
+            }
+        } 
     else {
         printf("Unknown command: %s\n", command);
         print_usage();
