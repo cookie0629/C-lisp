@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "../runtime/gc.h"
 #include <string.h>
 #include <ctype.h>
 
@@ -156,22 +157,49 @@ static LispVal* parse_list() {
     // Check for empty list ')'
     int saved_pos = pos;
     skip_whitespace();
+
     if (peek() == ')') {
         advance();
         return lisp_alloc(LISP_NIL);
     }
+
     pos = saved_pos; // Restore position
 
     LispVal* head = parse_expression();
+    GC_PUSH(head);
+
     LispVal* tail = parse_list(); 
-    return lisp_cons(head, tail);
+    GC_PUSH(tail);
+
+    LispVal* result = lisp_cons(head, tail);
+
+    GC_POP(); //tail
+    GC_POP(); //head
+
+    return result;
 }
 
 static LispVal* parse_quote() {
     LispVal* expr = parse_expression();
+    GC_PUSH(expr);
+
     LispVal* quote_sym = lisp_symbol("quote");
-    // Expand 'expr to (quote expr) -> (cons quote (cons expr nil))
-    return lisp_cons(quote_sym, lisp_cons(expr, lisp_alloc(LISP_NIL)));
+    GC_PUSH(quote_sym);
+
+    LispVal* nil = lisp_alloc(LISP_NIL);
+    GC_PUSH(nil);
+
+    LispVal* inner = lisp_cons(expr, nil);
+    GC_PUSH(inner);
+
+    LispVal* result = lisp_cons(quote_sym, inner);
+
+    GC_POP(); // inner
+    GC_POP(); // nil
+    GC_POP(); // quote_sym
+    GC_POP(); // expr
+
+    return result;
 }
 
 static LispVal* parse_expression() {
@@ -218,9 +246,10 @@ static LispVal* parse_expression() {
 LispVal* lisp_parse(const char* input) {
     src = input;
     pos = 0;
-    
-    // We parse multiple top-level expressions into a list
+
     LispVal* root = lisp_alloc(LISP_NIL);
+    GC_PUSH(root);
+
     LispVal* tail = NULL;
 
     while (true) {
@@ -230,7 +259,14 @@ LispVal* lisp_parse(const char* input) {
         LispVal* expr = parse_expression();
         if (!expr) break;
 
-        LispVal* new_node = lisp_cons(expr, lisp_alloc(LISP_NIL));
+        GC_PUSH(expr);
+
+        LispVal* nil = lisp_alloc(LISP_NIL);
+        GC_PUSH(nil);
+
+        LispVal* new_node = lisp_cons(expr, nil);
+        GC_PUSH(new_node);
+
         if (root->type == LISP_NIL) {
             root = new_node;
             tail = root;
@@ -238,7 +274,14 @@ LispVal* lisp_parse(const char* input) {
             tail->data.cons.cdr = new_node;
             tail = new_node;
         }
+
+        GC_POP(); // new_node
+        GC_POP(); // nil
+        GC_POP(); // expr
     }
+
+    GC_POP(); // root
+
     return root;
 }
 

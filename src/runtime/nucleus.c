@@ -1,4 +1,5 @@
 #include "nucleus.h"
+#include "gc.h"
 #include <string.h>
 
 #ifdef _MSC_VER
@@ -8,23 +9,17 @@
 // Initialize the runtime (Placeholder for GC setup)
 void lisp_runtime_init(size_t heap_size) {
     printf("[Runtime] Initializing heap with size: %zu bytes\n", heap_size);
+    gc_init(heap_size);
 }
 
 // Shutdown the runtime
 void lisp_runtime_shutdown() {
-    // TODO: Free all allocated memory (if not using OS cleanup)
+    gc_shutdown();
 }
 
-// Basic allocator (Placeholder: uses malloc directly)
-LispVal* lisp_alloc(LispType type) {
-    LispVal* val = (LispVal*)malloc(sizeof(LispVal));
-    if (!val) {
-        fprintf(stderr, "Fatal: Out of memory\n");
-        exit(1);
-    }
-    val->type = type;
-    val->marked = false;
-    return val;
+// Basic allocator
+LispVal* list_alloc(LispType type) {
+    return gc_alloc(type);
 }
 
 // --- Constructors ---
