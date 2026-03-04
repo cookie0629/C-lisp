@@ -1,19 +1,17 @@
-;; 1. Test Control Flow & Recursion (Fibonacci)
-(defun fib (n)
-  (if (< n 2)
-      n
-      (+ (fib (- n 1)) (fib (- n 2)))))
+(setq x 100)
 
-(print "Fibonacci of 6 is:")
-(print (fib 6))
+(print "Global x is:")
+(print x)
 
-;; 2. Test List Operations
-(setq my_list (cons 1 (cons 2 (cons 3 nil))))
-(print "My List:")
-(print my_list)
+(print "Testing PROGN and LET:")
 
-(print "CAR of My List:")
-(print (car my_list))
+(let ((x 10) 
+      (y 20))
+  (progn
+    (print "Local x in let block is:")
+    (print x)
+    (print "Sum of local x and y is:")
+    (+ x y)))
 
-(print "CDR of My List:")
-(print (cdr my_list))
+(print "Global x after let is still:")
+(print x)

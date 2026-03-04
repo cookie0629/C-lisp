@@ -14,6 +14,9 @@ typedef struct {
     // Simple symbol table to track declared global variables
     char* declared_vars[MAX_VARS];
     int var_count;
+    
+    //ID generator for 'let' closures
+    int let_counter;
 } TranspilerContext;
 
 TranspilerContext* transpiler_create();

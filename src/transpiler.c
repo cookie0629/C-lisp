@@ -12,6 +12,7 @@ TranspilerContext* transpiler_create() {
     ctx->global_defs = builder_create();
     ctx->main_body = builder_create();
     ctx->var_count = 0;
+    ctx->let_counter = 0; // Initialize counter
     
     builder_append(ctx->global_defs, "#include \"runtime/nucleus.h\"\n");
     builder_append(ctx->global_defs, "#include <stdio.h>\n\n");
@@ -56,6 +57,8 @@ static char* handle_func_call(TranspilerContext* ctx, const char* func_name, Lis
 static char* handle_if(TranspilerContext* ctx, LispVal* args);
 static char* handle_logic(TranspilerContext* ctx, const char* op, LispVal* args);
 static char* handle_list_ops(TranspilerContext* ctx, const char* op, LispVal* args);
+static char* handle_progn(TranspilerContext* ctx, LispVal* args);
+static char* handle_let(TranspilerContext* ctx, LispVal* args);
 
 char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
     if (!expr) return strdup("NULL");
@@ -102,6 +105,16 @@ char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
                 }
                 else if (strcasecmp(func_name, "defun") == 0) {
                     char* code = handle_defun(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "progn") == 0) {
+                    char* code = handle_progn(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "let") == 0) {
+                    char* code = handle_let(ctx, tail);
                     builder_append(local_cb, "%s", code);
                     free(code);
                 }
@@ -371,5 +384,97 @@ static char* handle_list_ops(TranspilerContext* ctx, const char* op, LispVal* ar
 
     char* res = strdup(builder_get(cb));
     builder_free(cb);
+    return res;
+}
+
+/* --- Scope & Blocks --- */
+
+// Handler: (progn expr1 expr2 ...)
+// Translates to C comma operator: (expr1, expr2, ...)
+static char* handle_progn(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+    
+    CodeBuilder* cb = builder_create();
+    builder_append(cb, "(");
+    
+    LispVal* curr = args;
+    bool first = true;
+    while (curr && curr->type == LISP_CONS) {
+        if (!first) builder_append(cb, ", ");
+        char* expr_code = transpile_expression(ctx, curr->data.cons.car);
+        builder_append(cb, "%s", expr_code);
+        free(expr_code);
+        
+        curr = curr->data.cons.cdr;
+        first = false;
+    }
+    
+    builder_append(cb, ")");
+    char* res = strdup(builder_get(cb));
+    builder_free(cb);
+    return res;
+}
+
+// Handler: (let ((x 1) (y 2)) body...)
+// Translates to a generated helper C function that is called immediately
+static char* handle_let(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+
+    LispVal* bindings = args->data.cons.car;
+    LispVal* body = args->data.cons.cdr; // List of body expressions
+
+    int let_id = ctx->let_counter++;
+    
+    CodeBuilder* func_cb = builder_create();
+    CodeBuilder* call_cb = builder_create();
+
+    // 1. Build the Helper Function Signature
+    builder_append(func_cb, "LispVal* lisp_let_%d(", let_id);
+    // 2. Build the Call Site
+    builder_append(call_cb, "lisp_let_%d(", let_id);
+
+    // Parse bindings: ((x 1) (y 2))
+    LispVal* curr_bind = bindings;
+    bool first = true;
+    while (curr_bind && curr_bind->type == LISP_CONS) {
+        LispVal* pair = curr_bind->data.cons.car; 
+        const char* var_name = pair->data.cons.car->data.str_val;
+        LispVal* val_expr = pair->data.cons.cdr->data.cons.car;
+
+        if (!first) {
+            builder_append(func_cb, ", ");
+            builder_append(call_cb, ", ");
+        }
+
+        // C function parameter representing the local variable
+        builder_append(func_cb, "LispVal* lisp_var_%s", var_name);
+
+        // Argument passed to the function
+        char* val_code = transpile_expression(ctx, val_expr);
+        builder_append(call_cb, "%s", val_code);
+        free(val_code);
+
+        curr_bind = curr_bind->data.cons.cdr;
+        first = false;
+    }
+
+    if (first) builder_append(func_cb, "void");
+
+    builder_append(func_cb, ") {\n");
+    builder_append(call_cb, ")");
+
+    // A Lisp 'let' body can contain multiple expressions, so it's implicitly a 'progn'
+    char* body_code = handle_progn(ctx, body);
+    builder_append(func_cb, "    return %s;\n", body_code);
+    free(body_code);
+
+    builder_append(func_cb, "}\n\n");
+
+    // Push the generated helper function to the global definition space
+    builder_append(ctx->global_defs, "%s", builder_get(func_cb));
+
+    char* res = strdup(builder_get(call_cb));
+    builder_free(func_cb);
+    builder_free(call_cb);
     return res;
 }
