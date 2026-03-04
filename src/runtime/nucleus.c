@@ -60,6 +60,33 @@ LispVal* lisp_cons(LispVal* car, LispVal* cdr) {
     return val;
 }
 
+/* --- Logic & List Helpers --- */
+
+bool lisp_is_truthy(LispVal* val) {
+    if (!val) return false;
+    // In Lisp, only NIL is false. Everything else is true.
+    if (val->type == LISP_NIL) return false;
+    return true;
+}
+
+LispVal* lisp_bool(bool b) {
+    return b ? lisp_alloc(LISP_T) : lisp_alloc(LISP_NIL);
+}
+
+LispVal* lisp_car(LispVal* list) {
+    if (!list || list->type != LISP_CONS) {
+        return lisp_alloc(LISP_NIL); // car of non-list is usually NIL (or error)
+    }
+    return list->data.cons.car;
+}
+
+LispVal* lisp_cdr(LispVal* list) {
+    if (!list || list->type != LISP_CONS) {
+        return lisp_alloc(LISP_NIL); // cdr of non-list is usually NIL (or error)
+    }
+    return list->data.cons.cdr;
+}
+
 // --- Printer ---
 
 void lisp_print(LispVal* val) {

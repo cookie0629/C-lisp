@@ -53,6 +53,9 @@ static char* handle_print(TranspilerContext* ctx, LispVal* args);
 static char* handle_setq(TranspilerContext* ctx, LispVal* args);
 static char* handle_defun(TranspilerContext* ctx, LispVal* args);
 static char* handle_func_call(TranspilerContext* ctx, const char* func_name, LispVal* args);
+static char* handle_if(TranspilerContext* ctx, LispVal* args);
+static char* handle_logic(TranspilerContext* ctx, const char* op, LispVal* args);
+static char* handle_list_ops(TranspilerContext* ctx, const char* op, LispVal* args);
 
 char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
     if (!expr) return strdup("NULL");
@@ -99,6 +102,24 @@ char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
                 }
                 else if (strcasecmp(func_name, "defun") == 0) {
                     char* code = handle_defun(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "if") == 0) {
+                    char* code = handle_if(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcmp(func_name, ">") == 0 || strcmp(func_name, "<") == 0 || 
+                         strcmp(func_name, "=") == 0 || strcmp(func_name, ">=") == 0 || 
+                         strcmp(func_name, "<=") == 0) {
+                    char* code = handle_logic(ctx, func_name, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "car") == 0 || strcasecmp(func_name, "cdr") == 0 ||
+                         strcasecmp(func_name, "cons") == 0 || strcasecmp(func_name, "quote") == 0) {
+                    char* code = handle_list_ops(ctx, func_name, tail);
                     builder_append(local_cb, "%s", code);
                     free(code);
                 }
@@ -265,4 +286,90 @@ void transpile_ast_to_file(TranspilerContext* ctx, LispVal* ast, const char* out
     fprintf(out, "    return 0;\n");
     fprintf(out, "}\n");
     fclose(out);
+}
+
+// Handler: (if condition then-expr else-expr)
+static char* handle_if(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+
+    LispVal* cond_node = args->data.cons.car;
+    LispVal* then_node = args->data.cons.cdr ? args->data.cons.cdr->data.cons.car : NULL;
+    LispVal* else_node = (args->data.cons.cdr && args->data.cons.cdr->data.cons.cdr) ? 
+                          args->data.cons.cdr->data.cons.cdr->data.cons.car : NULL;
+
+    char* cond_code = transpile_expression(ctx, cond_node);
+    char* then_code = then_node ? transpile_expression(ctx, then_node) : strdup("lisp_alloc(LISP_NIL)");
+    char* else_code = else_node ? transpile_expression(ctx, else_node) : strdup("lisp_alloc(LISP_NIL)");
+
+    CodeBuilder* cb = builder_create();
+    // Translate to C ternary operator: (lisp_is_truthy(cond) ? (then) : (else))
+    builder_append(cb, "(lisp_is_truthy(%s) ? (%s) : (%s))", cond_code, then_code, else_code);
+
+    free(cond_code);
+    free(then_code);
+    free(else_code);
+
+    char* res = strdup(builder_get(cb));
+    builder_free(cb);
+    return res;
+}
+
+// Handler: (> a b), (= a b)
+static char* handle_logic(TranspilerContext* ctx, const char* op, LispVal* args) {
+    if (!args || args->type != LISP_CONS || !args->data.cons.cdr) return strdup("lisp_alloc(LISP_T)");
+
+    LispVal* arg1 = args->data.cons.car;
+    LispVal* arg2 = args->data.cons.cdr->data.cons.car;
+
+    char* code1 = transpile_expression(ctx, arg1);
+    char* code2 = transpile_expression(ctx, arg2);
+
+    CodeBuilder* cb = builder_create();
+    // Note: For simplicity, assuming both are integers here. 
+    // Real implementation requires type checking at runtime.
+    if (strcmp(op, "=") == 0) op = "=="; // Map Lisp '=' to C '=='
+    
+    builder_append(cb, "lisp_bool((%s)->data.int_val %s (%s)->data.int_val)", code1, op, code2);
+
+    free(code1);
+    free(code2);
+
+    char* res = strdup(builder_get(cb));
+    builder_free(cb);
+    return res;
+}
+
+// Handler: (car x), (cdr x), (cons a b), (quote x)
+static char* handle_list_ops(TranspilerContext* ctx, const char* op, LispVal* args) {
+    CodeBuilder* cb = builder_create();
+
+    if (strcasecmp(op, "car") == 0) {
+        char* arg_code = transpile_expression(ctx, args->data.cons.car);
+        builder_append(cb, "lisp_car(%s)", arg_code);
+        free(arg_code);
+    } 
+    else if (strcasecmp(op, "cdr") == 0) {
+        char* arg_code = transpile_expression(ctx, args->data.cons.car);
+        builder_append(cb, "lisp_cdr(%s)", arg_code);
+        free(arg_code);
+    } 
+    else if (strcasecmp(op, "cons") == 0) {
+        char* car_code = transpile_expression(ctx, args->data.cons.car);
+        char* cdr_code = transpile_expression(ctx, args->data.cons.cdr->data.cons.car);
+        builder_append(cb, "lisp_cons(%s, %s)", car_code, cdr_code);
+        free(car_code);
+        free(cdr_code);
+    }
+    else if (strcasecmp(op, "quote") == 0) {
+        // Simple quoting implementation: if it's a list, we need to construct it
+        // For now, if we quote an atom like 'a, it just returns symbol "a".
+        // Real list quoting requires deep construction, handled in parse_quote in Stage 1.
+        char* arg_code = transpile_expression(ctx, args->data.cons.car);
+        builder_append(cb, "%s", arg_code);
+        free(arg_code);
+    }
+
+    char* res = strdup(builder_get(cb));
+    builder_free(cb);
+    return res;
 }

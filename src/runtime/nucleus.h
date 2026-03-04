@@ -63,4 +63,16 @@ LispVal* lisp_cons(LispVal* car, LispVal* cdr);
 // Print LispVal to stdout (for debugging)
 void lisp_print(LispVal* val);
 
+/* --- Logic & List Helpers --- */
+
+// Check if a Lisp value is "truthy" (anything except NIL)
+bool lisp_is_truthy(LispVal* val);
+
+// Convert C boolean to Lisp T or NIL
+LispVal* lisp_bool(bool b);
+
+// Safe list operations
+LispVal* lisp_car(LispVal* list);
+LispVal* lisp_cdr(LispVal* list);
+
 #endif // NUCLEUS_H
