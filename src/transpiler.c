@@ -63,6 +63,8 @@ static char* handle_boolean_logic(TranspilerContext* ctx, const char* op, LispVa
 static char* handle_while(TranspilerContext* ctx, LispVal* args);
 static char* handle_lambda(TranspilerContext* ctx, LispVal* args);
 static char* handle_funcall(TranspilerContext* ctx, LispVal* args);
+static char* handle_c_expr(TranspilerContext* ctx, LispVal* args);
+static char* handle_c_stmt(TranspilerContext* ctx, LispVal* args);
 
 char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
     if (!expr) return strdup("NULL");
@@ -159,6 +161,16 @@ char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
                 }
                 else if (strcasecmp(func_name, "funcall") == 0) {
                     char* code = handle_funcall(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "c-expr") == 0) {
+                    char* code = handle_c_expr(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "c-stmt") == 0) {
+                    char* code = handle_c_stmt(ctx, tail);
                     builder_append(local_cb, "%s", code);
                     free(code);
                 }
@@ -694,5 +706,42 @@ static char* handle_funcall(TranspilerContext* ctx, LispVal* args) {
     char* res = strdup(builder_get(call_cb));
     builder_free(args_cb);
     builder_free(call_cb);
+    return res;
+}
+
+/* --- The Ultimate Hack (Inline C) --- */
+
+// Handler: (c-expr "C expression string")
+// Injects raw C code that must evaluate to a LispVal*
+static char* handle_c_expr(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+    
+    LispVal* str_node = args->data.cons.car;
+    // We expect the argument to be a Lisp string literal
+    if (str_node->type != LISP_STRING) {
+        return strdup("lisp_alloc(LISP_NIL)");
+    }
+    
+    // Directly inject the string content as C code!
+    // No wrapping, pure raw native code execution.
+    return strdup(str_node->data.str_val);
+}
+
+// Handler: (c-stmt "C statements string")
+// Injects raw C statements and returns LISP_NIL using the comma operator
+static char* handle_c_stmt(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+    
+    LispVal* str_node = args->data.cons.car;
+    if (str_node->type != LISP_STRING) {
+        return strdup("lisp_alloc(LISP_NIL)");
+    }
+    
+    CodeBuilder* cb = builder_create();
+    // Execute the raw C statement, then evaluate to NIL
+    builder_append(cb, "(%s, lisp_alloc(LISP_NIL))", str_node->data.str_val);
+    
+    char* res = strdup(builder_get(cb));
+    builder_free(cb);
     return res;
 }

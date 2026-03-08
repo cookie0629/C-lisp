@@ -91,15 +91,27 @@ static Token get_token() {
     // String Literal
     if (c == '"') {
         advance(); // Skip opening quote
-        int start = pos;
-        while (peek() != '"' && peek() != '\0') {
-            advance();
-        }
-        int len = pos - start;
-        token.text = malloc(len + 1);
-        strncpy(token.text, src + start, len);
+        int capacity = 128;
+        token.text = malloc(capacity);
+        int len = 0;
+        while (peek() != '\0') {
+                    if (peek() == '\\' && src[pos+1] == '"') {
+                        advance();
+                        token.text[len++] = advance();
+                    } else if (peek() == '"') {
+                        break; 
+                    } else {
+                        token.text[len++] = advance();
+                    }
+                    
+                    if (len >= capacity - 2) {
+                        capacity *= 2;
+                        token.text = realloc(token.text, capacity);
+                    }
+                }
+                
         token.text[len] = '\0';
-        
+                
         if (peek() == '"') advance(); // Skip closing quote
         token.type = TOK_STRING;
         return token;
