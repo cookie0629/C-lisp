@@ -59,6 +59,8 @@ static char* handle_logic(TranspilerContext* ctx, const char* op, LispVal* args)
 static char* handle_list_ops(TranspilerContext* ctx, const char* op, LispVal* args);
 static char* handle_progn(TranspilerContext* ctx, LispVal* args);
 static char* handle_let(TranspilerContext* ctx, LispVal* args);
+static char* handle_boolean_logic(TranspilerContext* ctx, const char* op, LispVal* args);
+static char* handle_while(TranspilerContext* ctx, LispVal* args);
 
 char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
     if (!expr) return strdup("NULL");
@@ -115,6 +117,18 @@ char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
                 }
                 else if (strcasecmp(func_name, "let") == 0) {
                     char* code = handle_let(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "and") == 0 || 
+                         strcasecmp(func_name, "or") == 0 || 
+                         strcasecmp(func_name, "not") == 0) {
+                    char* code = handle_boolean_logic(ctx, func_name, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "while") == 0) {
+                    char* code = handle_while(ctx, tail);
                     builder_append(local_cb, "%s", code);
                     free(code);
                 }
@@ -475,6 +489,103 @@ static char* handle_let(TranspilerContext* ctx, LispVal* args) {
 
     char* res = strdup(builder_get(call_cb));
     builder_free(func_cb);
+    builder_free(call_cb);
+    return res;
+}
+
+/* --- Logic & Iteration --- */
+
+// Handler: (and ...), (or ...), (not ...)
+// Implements short-circuit evaluation (отложенный порядок исполнения)
+static char* handle_boolean_logic(TranspilerContext* ctx, const char* op, LispVal* args) {
+    if (strcasecmp(op, "not") == 0) {
+        if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+        char* arg_code = transpile_expression(ctx, args->data.cons.car);
+        CodeBuilder* cb = builder_create();
+        builder_append(cb, "lisp_bool(!lisp_is_truthy(%s))", arg_code);
+        free(arg_code);
+        char* res = strdup(builder_get(cb));
+        builder_free(cb);
+        return res;
+    }
+    else if (strcasecmp(op, "and") == 0) {
+        if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_T)"); // (and) -> T
+        
+        LispVal* arg1 = args->data.cons.car;
+        LispVal* rest = args->data.cons.cdr;
+        char* code1 = transpile_expression(ctx, arg1);
+        
+        if (!rest || rest->type == LISP_NIL) return code1; // Base case
+        
+        char* code_rest = handle_boolean_logic(ctx, "and", rest);
+        CodeBuilder* cb = builder_create();
+        // Short-circuit using C ternary: condition ? (evaluate rest) : NIL
+        builder_append(cb, "(lisp_is_truthy(%s) ? (%s) : lisp_alloc(LISP_NIL))", code1, code_rest);
+        
+        free(code1); 
+        free(code_rest);
+        char* res = strdup(builder_get(cb));
+        builder_free(cb);
+        return res;
+    }
+    else if (strcasecmp(op, "or") == 0) {
+        if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)"); // (or) -> NIL
+        
+        LispVal* arg1 = args->data.cons.car;
+        LispVal* rest = args->data.cons.cdr;
+        char* code1 = transpile_expression(ctx, arg1);
+        
+        if (!rest || rest->type == LISP_NIL) return code1;
+        
+        char* code_rest = handle_boolean_logic(ctx, "or", rest);
+        CodeBuilder* cb = builder_create();
+        // Short-circuit: condition ? T : (evaluate rest)
+        builder_append(cb, "(lisp_is_truthy(%s) ? lisp_alloc(LISP_T) : (%s))", code1, code_rest);
+        
+        free(code1); 
+        free(code_rest);
+        char* res = strdup(builder_get(cb));
+        builder_free(cb);
+        return res;
+    }
+    return strdup("lisp_alloc(LISP_NIL)");
+}
+
+// Handler: (while condition body...)
+// Translates to a generated global C function containing a native C while loop
+static char* handle_while(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+
+    LispVal* cond_node = args->data.cons.car;
+    LispVal* body_node = args->data.cons.cdr;
+
+    // Reuse let_counter to generate unique function names
+    int while_id = ctx->let_counter++; 
+    
+    CodeBuilder* func_cb = builder_create();
+    builder_append(func_cb, "LispVal* lisp_while_%d() {\n", while_id);
+    
+    char* cond_code = transpile_expression(ctx, cond_node);
+    // The C compiler will re-evaluate cond_code on every loop iteration naturally!
+    builder_append(func_cb, "    while (lisp_is_truthy(%s)) {\n", cond_code);
+    
+    char* body_code = handle_progn(ctx, body_node);
+    builder_append(func_cb, "        %s;\n", body_code);
+    free(body_code);
+    
+    builder_append(func_cb, "    }\n");
+    builder_append(func_cb, "    return lisp_alloc(LISP_NIL);\n");
+    builder_append(func_cb, "}\n\n");
+    
+    // Add the generated loop function to the global definition space
+    builder_append(ctx->global_defs, "%s", builder_get(func_cb));
+    builder_free(func_cb);
+    free(cond_code);
+    
+    // The expression simply calls the generated function
+    CodeBuilder* call_cb = builder_create();
+    builder_append(call_cb, "lisp_while_%d()", while_id);
+    char* res = strdup(builder_get(call_cb));
     builder_free(call_cb);
     return res;
 }

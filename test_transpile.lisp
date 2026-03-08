@@ -1,17 +1,20 @@
-(setq x 100)
+;; 1. Testing Short-circuit Evaluation (Logic)
+(print "--- Testing Logic ---")
+(and (print "AND: This will print") 
+     nil 
+     (print "AND: This MUST NOT print! (Short-circuited)"))
 
-(print "Global x is:")
-(print x)
+(or (print "OR: This will print") 
+    (print "OR: This MUST NOT print! (Short-circuited)"))
 
-(print "Testing PROGN and LET:")
+;; 2. Testing Iteration (While Loop)
+(print "--- Testing Iteration ---")
+(setq counter 0)
 
-(let ((x 10) 
-      (y 20))
+(while (< counter 5)
   (progn
-    (print "Local x in let block is:")
-    (print x)
-    (print "Sum of local x and y is:")
-    (+ x y)))
+    (print "Counter is currently:")
+    (print counter)
+    (setq counter (+ counter 1))))
 
-(print "Global x after let is still:")
-(print x)
+(print "Loop finished!")
