@@ -1,68 +1,25 @@
 #include "nucleus.h"
 #include "gc.h"
 #include <string.h>
+#include <stdio.h>
 
 #ifdef _MSC_VER
     #define strdup _strdup
 #endif
 
-#define MAX_GC_ROOTS 2048
-static LispVal* gc_roots[MAX_GC_ROOTS];
-static int gc_root_count = 0;
+// --- Runtime Init & Shutdown ---
 
-// Initialize the runtime (Placeholder for GC setup)
 void lisp_runtime_init(size_t heap_size) {
-    printf("[Runtime] Initializing heap with size: %zu bytes\n", heap_size);
+    printf("[Runtime] Initializing heap with size: %zu objects\n", heap_size);
     gc_init(heap_size);
 }
 
-void gc_init(size_t heap_size) {
-    printf("[GC] Initializing Garbage Collector (Heap Capacity: %zu)\n", heap_size);
-    gc_root_count = 0;
-}
-
-void gc_shutdown() {
-    printf("[GC] Shutting down Garbage Collector.\n");
-    gc_root_count = 0;
-}
-
-void gc_push(LispVal* val) {
-    if (gc_root_count < MAX_GC_ROOTS) {
-        gc_roots[gc_root_count++] = val;
-    } else {
-        fprintf(stderr, "Fatal: GC Root stack overflow!\n");
-        exit(1);
-    }
-}
-
-void gc_pop() {
-    if (gc_root_count > 0) {
-        gc_root_count--;
-    }
-}
-
-LispVal* gc_alloc(LispType type) {
-    LispVal* val = (LispVal*)malloc(sizeof(LispVal));
-    if (!val) {
-        fprintf(stderr, "Fatal: Out of memory\n");
-        exit(1);
-    }
-    val->type = type;
-    val->marked = false;
-    return val;
-}
-
-LispVal* lisp_alloc(LispType type) {
-    return gc_alloc(type);
-}
-
-// Shutdown the runtime
 void lisp_runtime_shutdown() {
     gc_shutdown();
 }
 
-// Basic allocator
-LispVal* list_alloc(LispType type) {
+// Wrapper for the real GC allocator
+LispVal* lisp_alloc(LispType type) {
     return gc_alloc(type);
 }
 
@@ -133,6 +90,21 @@ LispVal* lisp_closure(LispNativeFunc func, LispVal* env) {
     return val;
 }
 
+LispVal* lisp_thunk(LispNativeFunc func, LispVal* args, LispVal* env) {
+    LispVal* val = gc_alloc(LISP_THUNK);
+    val->data.thunk.func = func;
+    val->data.thunk.args = args;
+    val->data.thunk.env = env;
+    return val;
+}
+
+LispVal* lisp_trampoline(LispVal* val) {
+    while (val && val->type == LISP_THUNK) {
+        val = val->data.thunk.func(val->data.thunk.args, val->data.thunk.env);
+    }
+    return val;
+}
+
 // --- Printer ---
 
 void lisp_print(LispVal* val) {
@@ -178,6 +150,9 @@ void lisp_print(LispVal* val) {
             break;
         case LISP_CLOSURE:
             printf("#<CLOSURE %p>", (void*)val->data.closure.func);
+            break;
+        case LISP_THUNK: 
+            printf("#<THUNK %p>", (void*)val->data.thunk.func); 
             break;
     }
 }

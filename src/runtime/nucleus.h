@@ -15,7 +15,8 @@ typedef enum {
     LISP_CONS,
     LISP_NIL,
     LISP_T,
-    LISP_CLOSURE // Added Closure type
+    LISP_CLOSURE, // Added Closure type
+    LISP_THUNK
 } LispType;
 
 // Forward declaration
@@ -44,6 +45,11 @@ typedef struct LispVal {
             LispNativeFunc func; // The hoisted C function pointer
             struct LispVal* env; // Captured environment (lexical scope)
         } closure;
+        struct {
+            LispNativeFunc func;
+            struct LispVal* args;
+            struct LispVal* env;
+        } thunk;
     } data;
 } LispVal;
 
@@ -51,12 +57,6 @@ typedef struct LispVal {
 
 // Initialize runtime environment (heap allocation)
 void lisp_runtime_init(size_t heap_size);
-
-void gc_init(size_t heap_size);
-void gc_shutdown();
-void gc_push(LispVal* val);
-void gc_pop();
-LispVal* gc_alloc(LispType type);
 
 // Shutdown runtime (cleanup)
 void lisp_runtime_shutdown();
@@ -92,5 +92,8 @@ LispVal* lisp_cdr(LispVal* list);
 
 // New constructor for Closures
 LispVal* lisp_closure(LispNativeFunc func, LispVal* env);
+
+LispVal* lisp_thunk(LispNativeFunc func, LispVal* args, LispVal* env);
+LispVal* lisp_trampoline(LispVal* val);
 
 #endif // NUCLEUS_H
