@@ -6,10 +6,54 @@
     #define strdup _strdup
 #endif
 
+#define MAX_GC_ROOTS 2048
+static LispVal* gc_roots[MAX_GC_ROOTS];
+static int gc_root_count = 0;
+
 // Initialize the runtime (Placeholder for GC setup)
 void lisp_runtime_init(size_t heap_size) {
     printf("[Runtime] Initializing heap with size: %zu bytes\n", heap_size);
     gc_init(heap_size);
+}
+
+void gc_init(size_t heap_size) {
+    printf("[GC] Initializing Garbage Collector (Heap Capacity: %zu)\n", heap_size);
+    gc_root_count = 0;
+}
+
+void gc_shutdown() {
+    printf("[GC] Shutting down Garbage Collector.\n");
+    gc_root_count = 0;
+}
+
+void gc_push(LispVal* val) {
+    if (gc_root_count < MAX_GC_ROOTS) {
+        gc_roots[gc_root_count++] = val;
+    } else {
+        fprintf(stderr, "Fatal: GC Root stack overflow!\n");
+        exit(1);
+    }
+}
+
+void gc_pop() {
+    if (gc_root_count > 0) {
+        gc_root_count--;
+    }
+}
+
+LispVal* gc_alloc(LispType type) {
+    LispVal* val = (LispVal*)malloc(sizeof(LispVal));
+    if (!val) {
+        fprintf(stderr, "Fatal: Out of memory\n");
+        exit(1);
+    }
+    val->type = type;
+    val->marked = false;
+    return val;
+}
+
+LispVal* lisp_alloc(LispType type) {
+    return gc_alloc(type);
 }
 
 // Shutdown the runtime
@@ -82,6 +126,13 @@ LispVal* lisp_cdr(LispVal* list) {
     return list->data.cons.cdr;
 }
 
+LispVal* lisp_closure(LispNativeFunc func, LispVal* env) {
+    LispVal* val = lisp_alloc(LISP_CLOSURE);
+    val->data.closure.func = func;
+    val->data.closure.env = env;
+    return val;
+}
+
 // --- Printer ---
 
 void lisp_print(LispVal* val) {
@@ -124,6 +175,9 @@ void lisp_print(LispVal* val) {
                 lisp_print(curr);
             }
             printf(")");
+            break;
+        case LISP_CLOSURE:
+            printf("#<CLOSURE %p>", (void*)val->data.closure.func);
             break;
     }
 }

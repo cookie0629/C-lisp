@@ -14,7 +14,8 @@ typedef enum {
     LISP_STRING,
     LISP_CONS,
     LISP_NIL,
-    LISP_T
+    LISP_T,
+    LISP_CLOSURE // Added Closure type
 } LispType;
 
 // Forward declaration
@@ -26,6 +27,9 @@ typedef struct {
     struct LispVal *cdr;
 } ConsCell;
 
+// A standard signature for all Lisp functions to support first-class passing
+typedef struct LispVal* (*LispNativeFunc)(struct LispVal* args, struct LispVal* env);
+
 // Generic Lisp Object (Tagged Union)
 typedef struct LispVal {
     LispType type;          // Type tag
@@ -36,6 +40,10 @@ typedef struct LispVal {
         double float_val;   // Float value
         char *str_val;      // String or Symbol name
         ConsCell cons;      // Cons pair (List)
+        struct {
+            LispNativeFunc func; // The hoisted C function pointer
+            struct LispVal* env; // Captured environment (lexical scope)
+        } closure;
     } data;
 } LispVal;
 
@@ -44,11 +52,18 @@ typedef struct LispVal {
 // Initialize runtime environment (heap allocation)
 void lisp_runtime_init(size_t heap_size);
 
+void gc_init(size_t heap_size);
+void gc_shutdown();
+void gc_push(LispVal* val);
+void gc_pop();
+LispVal* gc_alloc(LispType type);
+
 // Shutdown runtime (cleanup)
 void lisp_runtime_shutdown();
 
 // Allocate a raw Lisp object (GC trigger point)
 LispVal* lisp_alloc(LispType type);
+
 
 /* --- Constructors --- */
 
@@ -74,5 +89,8 @@ LispVal* lisp_bool(bool b);
 // Safe list operations
 LispVal* lisp_car(LispVal* list);
 LispVal* lisp_cdr(LispVal* list);
+
+// New constructor for Closures
+LispVal* lisp_closure(LispNativeFunc func, LispVal* env);
 
 #endif // NUCLEUS_H

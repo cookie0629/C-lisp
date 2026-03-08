@@ -1,20 +1,11 @@
-;; 1. Testing Short-circuit Evaluation (Logic)
-(print "--- Testing Logic ---")
-(and (print "AND: This will print") 
-     nil 
-     (print "AND: This MUST NOT print! (Short-circuited)"))
+;; Assign a lambda to a variable
+(setq my_adder (lambda (x y) (+ x y)))
 
-(or (print "OR: This will print") 
-    (print "OR: This MUST NOT print! (Short-circuited)"))
+(print "Testing First-Class Lambda:")
+;; Execute the lambda via funcall
+(print (funcall my_adder 100 25))
 
-;; 2. Testing Iteration (While Loop)
-(print "--- Testing Iteration ---")
-(setq counter 0)
-
-(while (< counter 5)
-  (progn
-    (print "Counter is currently:")
-    (print counter)
-    (setq counter (+ counter 1))))
-
-(print "Loop finished!")
+;; Passing a lambda dynamically
+(setq execute_op (lambda (op a b) (funcall op a b)))
+(print "Testing Higher-Order Function:")
+(print (funcall execute_op my_adder 50 50))

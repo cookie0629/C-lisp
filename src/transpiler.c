@@ -61,6 +61,8 @@ static char* handle_progn(TranspilerContext* ctx, LispVal* args);
 static char* handle_let(TranspilerContext* ctx, LispVal* args);
 static char* handle_boolean_logic(TranspilerContext* ctx, const char* op, LispVal* args);
 static char* handle_while(TranspilerContext* ctx, LispVal* args);
+static char* handle_lambda(TranspilerContext* ctx, LispVal* args);
+static char* handle_funcall(TranspilerContext* ctx, LispVal* args);
 
 char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
     if (!expr) return strdup("NULL");
@@ -147,6 +149,16 @@ char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
                 else if (strcasecmp(func_name, "car") == 0 || strcasecmp(func_name, "cdr") == 0 ||
                          strcasecmp(func_name, "cons") == 0 || strcasecmp(func_name, "quote") == 0) {
                     char* code = handle_list_ops(ctx, func_name, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "lambda") == 0) {
+                    char* code = handle_lambda(ctx, tail);
+                    builder_append(local_cb, "%s", code);
+                    free(code);
+                }
+                else if (strcasecmp(func_name, "funcall") == 0) {
+                    char* code = handle_funcall(ctx, tail);
                     builder_append(local_cb, "%s", code);
                     free(code);
                 }
@@ -586,6 +598,101 @@ static char* handle_while(TranspilerContext* ctx, LispVal* args) {
     CodeBuilder* call_cb = builder_create();
     builder_append(call_cb, "lisp_while_%d()", while_id);
     char* res = strdup(builder_get(call_cb));
+    builder_free(call_cb);
+    return res;
+}
+
+/* --- Closures and First-Class Functions --- */
+
+// Handler: (lambda (a b) body...)
+// Hoists the lambda into a global C function and returns a LISP_CLOSURE object
+static char* handle_lambda(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+    
+    LispVal* params = args->data.cons.car;
+    LispVal* body = args->data.cons.cdr;
+    
+    int lambda_id = ctx->let_counter++; // Reuse let_counter for unique IDs
+    
+    CodeBuilder* func_cb = builder_create();
+    // Use the standard LispNativeFunc signature
+    builder_append(func_cb, "LispVal* lisp_lambda_%d(LispVal* _args, LispVal* _env) {\n", lambda_id);
+    
+    // Unpack arguments from the _args linked list into local C variables
+    int arg_idx = 0;
+    LispVal* curr_param = params;
+    while (curr_param && curr_param->type == LISP_CONS) {
+        const char* var_name = curr_param->data.cons.car->data.str_val;
+        builder_append(func_cb, "    LispVal* lisp_var_%s = lisp_car(", var_name);
+        for(int i=0; i<arg_idx; i++) builder_append(func_cb, "lisp_cdr(");
+        builder_append(func_cb, "_args)");
+        for(int i=0; i<arg_idx; i++) builder_append(func_cb, ")");
+        builder_append(func_cb, ";\n");
+        
+        curr_param = curr_param->data.cons.cdr;
+        arg_idx++;
+    }
+    
+    // Process the body
+    char* body_code = handle_progn(ctx, body);
+    builder_append(func_cb, "    return %s;\n", body_code);
+    free(body_code);
+    builder_append(func_cb, "}\n\n");
+    
+    // Push hoisted function to global definitions
+    builder_append(ctx->global_defs, "%s", builder_get(func_cb));
+    builder_free(func_cb);
+    
+    // The lambda expression evaluates to a Closure object
+    // Note: Environment capturing (lexical scope) requires a dynamic heap map, 
+    // initialized as NIL here for the foundational step.
+    CodeBuilder* res_cb = builder_create();
+    builder_append(res_cb, "lisp_closure(lisp_lambda_%d, lisp_alloc(LISP_NIL))", lambda_id);
+    
+    char* res = strdup(builder_get(res_cb));
+    builder_free(res_cb);
+    return res;
+}
+
+// Handler: (funcall f arg1 arg2)
+// Dynamically executes a first-class closure
+static char* handle_funcall(TranspilerContext* ctx, LispVal* args) {
+    if (!args || args->type != LISP_CONS) return strdup("lisp_alloc(LISP_NIL)");
+    
+    // 1. Evaluate the function expression (which should result in a CLOSURE)
+    char* func_code = transpile_expression(ctx, args->data.cons.car);
+    
+    // 2. Build the linked list of evaluated arguments dynamically
+    CodeBuilder* args_cb = builder_create();
+    LispVal* curr_arg = args->data.cons.cdr;
+    
+    if (!curr_arg || curr_arg->type == LISP_NIL) {
+        builder_append(args_cb, "lisp_alloc(LISP_NIL)");
+    } else {
+        int close_parens = 0;
+        while (curr_arg && curr_arg->type == LISP_CONS) {
+            char* arg_val = transpile_expression(ctx, curr_arg->data.cons.car);
+            builder_append(args_cb, "lisp_cons(%s, ", arg_val);
+            free(arg_val);
+            close_parens++;
+            curr_arg = curr_arg->data.cons.cdr;
+        }
+        builder_append(args_cb, "lisp_alloc(LISP_NIL)");
+        for(int i=0; i<close_parens; i++) builder_append(args_cb, ")");
+    }
+    
+    // 3. Generate the native C indirect function call
+    CodeBuilder* call_cb = builder_create();
+    
+    // For safety, we should evaluate func_code into a temp var, but for brevity in C:
+    builder_append(call_cb, "(((%s)->type == LISP_CLOSURE) ? ", func_code);
+    builder_append(call_cb, "(%s)->data.closure.func(%s, (%s)->data.closure.env) ", 
+                   func_code, builder_get(args_cb), func_code);
+    builder_append(call_cb, ": lisp_alloc(LISP_NIL))");
+        
+    free(func_code);
+    char* res = strdup(builder_get(call_cb));
+    builder_free(args_cb);
     builder_free(call_cb);
     return res;
 }
