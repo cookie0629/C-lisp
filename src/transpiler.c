@@ -1,4 +1,5 @@
 #include "transpiler.h"
+#include "macro.h"
 #include <string.h>
 #include <ctype.h>
 
@@ -604,11 +605,21 @@ static char* handle_c_stmt(TranspilerContext* ctx, LispVal* args) {
 }
 
 void transpile_ast_to_file(TranspilerContext* ctx, LispVal* ast, const char* out_filename) {
+    macro_init();
     LispVal* current = ast;
     while (current && current->type == LISP_CONS) {
-        char* expr_code = transpile_expression(ctx, current->data.cons.car);
-        builder_append(ctx->main_body, "    lisp_trampoline(%s);\n", expr_code);
-        free(expr_code);
+        LispVal* expr = current->data.cons.car;
+
+        if (macro_is_definition(expr)) {
+            macro_register(expr);
+        } else {
+            LispVal* expanded = macro_expand(expr);
+
+            char* expr_code = transpile_expression(ctx, expanded);
+            builder_append(ctx->main_body, "    lisp_trampoline(%s);\n", expr_code);
+            free(expr_code);
+        }
+
         current = current->data.cons.cdr;
     }
 
