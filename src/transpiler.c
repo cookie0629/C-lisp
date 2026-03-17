@@ -106,6 +106,15 @@ char* transpile_expression(TranspilerContext* ctx, LispVal* expr) {
             LispVal* head = expr->data.cons.car;
             LispVal* tail = expr->data.cons.cdr;
 
+            /* (c-code . "string") — injected by macro expansion */
+            if (head->type == LISP_SYMBOL &&
+                strcmp(head->data.str_val, "c-code") == 0 &&
+                tail && tail->type == LISP_STRING)
+            {
+                builder_append(local_cb, "%s", tail->data.str_val);
+                break;
+            }
+
             if (head->type == LISP_SYMBOL) {
                 const char* func_name = head->data.str_val;
 

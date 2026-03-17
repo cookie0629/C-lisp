@@ -18,6 +18,9 @@ typedef enum {
     TOK_SYMBOL,     // abc, +, setq
     TOK_STRING,     // "hello"
     TOK_QUOTE,      // '
+    TOK_QUASI,      // `
+    TOK_UNQUOTE,    // ,
+    TOK_SPLICE,     // ,@
     TOK_EOF,
     TOK_ERROR
 } TokenType;
@@ -85,6 +88,21 @@ static Token get_token() {
     if (c == '\'') {
         advance();
         token.type = TOK_QUOTE;
+        return token;
+    }
+    if (c == '`') {
+        advance();
+        token.type = TOK_QUASI;
+        return token;
+    }
+    if (c == ',') {
+        advance();
+        if (peek() == '@') {
+            advance();
+            token.type = TOK_SPLICE;
+        } else {
+            token.type = TOK_UNQUOTE;
+        }
         return token;
     }
 
@@ -214,6 +232,43 @@ static LispVal* parse_quote() {
     return result;
 }
 
+// Helper: wrap an expression with a symbol: (sym expr)
+static LispVal* wrap_sym(const char* sym_name, LispVal* expr) {
+    LispVal* sym = lisp_symbol(sym_name);
+    GC_PUSH(sym);
+    LispVal* nil = lisp_alloc(LISP_NIL);
+    GC_PUSH(nil);
+    LispVal* inner = lisp_cons(expr, nil);
+    GC_PUSH(inner);
+    LispVal* result = lisp_cons(sym, inner);
+    GC_POP(); GC_POP(); GC_POP();
+    return result;
+}
+
+static LispVal* parse_quasi() {
+    LispVal* expr = parse_expression();
+    GC_PUSH(expr);
+    LispVal* result = wrap_sym("quasiquote", expr);
+    GC_POP();
+    return result;
+}
+
+static LispVal* parse_unquote() {
+    LispVal* expr = parse_expression();
+    GC_PUSH(expr);
+    LispVal* result = wrap_sym("unquote", expr);
+    GC_POP();
+    return result;
+}
+
+static LispVal* parse_splice() {
+    LispVal* expr = parse_expression();
+    GC_PUSH(expr);
+    LispVal* result = wrap_sym("unquote-splicing", expr);
+    GC_POP();
+    return result;
+}
+
 static LispVal* parse_expression() {
     Token token = get_token();
 
@@ -245,6 +300,12 @@ static LispVal* parse_expression() {
             return parse_list();
         case TOK_QUOTE:
             return parse_quote();
+        case TOK_QUASI:
+            return parse_quasi();
+        case TOK_UNQUOTE:
+            return parse_unquote();
+        case TOK_SPLICE:
+            return parse_splice();
         case TOK_EOF:
             return NULL;
         default:
