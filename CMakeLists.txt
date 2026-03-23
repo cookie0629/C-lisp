@@ -24,3 +24,19 @@ include_directories(src)
 
 # Add source directory
 add_subdirectory(src)
+
+enable_testing()
+
+add_executable(tests
+    tests/test_gc.c
+    external/unity/unity.c
+
+    src/runtime/nucleus.c
+    src/runtime/gc.c
+)
+
+target_include_directories(tests PRIVATE
+    src
+    src/runtime
+    external/unity
+)

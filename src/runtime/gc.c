@@ -102,6 +102,15 @@ static void mark(LispVal* obj) {
             mark(obj->data.cons.car);
             mark(obj->data.cons.cdr);
             break;
+        
+        case LISP_CLOSURE:
+            mark(obj->data.closure.env);
+            break;
+
+        case LISP_THUNK:
+            mark(obj->data.thunk.args);
+            mark(obj->data.thunk.env);
+            break;
 
         case LISP_INT:
         case LISP_FLOAT:
