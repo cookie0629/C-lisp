@@ -29,6 +29,8 @@ enable_testing()
 
 add_executable(tests
     tests/test_gc.c
+    tests/test_main.c
+
     external/unity/unity.c
 
     src/runtime/nucleus.c

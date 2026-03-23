@@ -113,16 +113,148 @@ void test_gc_triggers_on_allocation(void) {
     TEST_ASSERT_TRUE(1);
 }
 
-int main(void) {
-    UNITY_BEGIN();
+// Циклы без root
+void test_gc_collects_cycles(void) {
+    LispVal* a = lisp_cons(NULL, NULL);
+    LispVal* b = lisp_cons(NULL, NULL);
 
-    RUN_TEST(test_gc_preserves_root_object);
-    RUN_TEST(test_gc_collects_unreachable_object);
-    RUN_TEST(test_gc_marks_cons_graph);
-    RUN_TEST(test_gc_marks_deep_list);
-    RUN_TEST(test_gc_collects_unreachable_list);
-    RUN_TEST(test_gc_double_collect);
-    RUN_TEST(test_gc_triggers_on_allocation);
+    a->data.cons.cdr = b;
+    b->data.cons.cdr = a; // цикл
 
-    return UNITY_END();
+    gc_collect();
+
+    // создаём новый объект → должен переиспользовать память
+    LispVal* x = lisp_int(1);
+
+    TEST_ASSERT_NOT_NULL(x);
+}
+
+//Циклы с root
+void test_gc_preserves_cycles_with_root(void) {
+    LispVal* a = lisp_cons(NULL, NULL);
+    LispVal* b = lisp_cons(NULL, NULL);
+
+    a->data.cons.cdr = b;
+    b->data.cons.cdr = a;
+
+    GC_PUSH(a);
+    gc_collect();
+
+    TEST_ASSERT_NOT_NULL(a);
+    TEST_ASSERT_NOT_NULL(b);
+
+    GC_POP();
+}
+
+//Переиспользование памяти
+void test_gc_reuses_memory_slots(void) {
+    LispVal* x = lisp_int(10);
+
+    gc_collect(); // x умирает
+
+    LispVal* y = lisp_int(20);
+
+    TEST_ASSERT_TRUE(x == y); // тот же слот
+}
+
+//Смена root
+void test_gc_root_update(void) {
+    LispVal* x = lisp_int(1);
+    GC_PUSH(x);
+
+    gc_collect();
+    TEST_ASSERT_EQUAL(1, x->data.int_val);
+
+    // меняем root
+    x = lisp_int(2);
+
+    gc_collect();
+
+    TEST_ASSERT_EQUAL(2, x->data.int_val);
+
+    GC_POP();
+}
+
+//частично достежимый граф
+void test_gc_partial_graph(void) {
+    LispVal* alive = lisp_int(1);
+    LispVal* dead = lisp_int(2);
+
+    LispVal* root = lisp_cons(alive, NULL);
+
+    GC_PUSH(root);
+    gc_collect();
+
+    // dead должен быть освобождён → переиспользуется
+    LispVal* x = lisp_int(999);
+
+    TEST_ASSERT_TRUE(x == dead);
+
+    GC_POP();
+}
+
+//нагрузка на рекурсию mark
+void test_gc_deep_tree(void) {
+    LispVal* root = lisp_int(0);
+
+    for (int i = 0; i < 50; i++) {
+        root = lisp_cons(root, root);
+    }
+
+    GC_PUSH(root);
+    gc_collect();
+
+    TEST_ASSERT_NOT_NULL(root);
+
+    GC_POP();
+}
+
+//освобождение строки
+void test_gc_frees_strings(void) {
+    LispVal* s = lisp_string("hello");
+
+    gc_collect(); // должен освободить строку
+
+    LispVal* x = lisp_string("world");
+
+    TEST_ASSERT_NOT_NULL(x);
+}
+
+//стресс-тест
+void test_gc_stress_allocation(void) {
+    for (int i = 0; i < 1000; i++) {
+        LispVal* x = lisp_int(i);
+        (void)x;
+    }
+
+    TEST_ASSERT_TRUE(1); // главное — не упасть
+}
+
+//тест для thunk и closure
+void test_gc_thunk_marking(void) {
+    LispVal* arg = lisp_int(42);
+
+    LispVal* thunk = lisp_thunk(NULL, arg, NULL);
+
+    GC_PUSH(thunk);
+    gc_collect();
+
+    TEST_ASSERT_EQUAL(42, thunk->data.thunk.args->data.int_val);
+
+    GC_POP();
+}
+
+//тест ошибки пользователя
+void test_gc_push_pop_balance(void) {
+    LispVal* x = lisp_int(1);
+
+    GC_PUSH(x);
+    GC_PUSH(x);
+
+    gc_collect();
+
+    TEST_ASSERT_EQUAL(1, x->data.int_val);
+
+    GC_POP();
+    GC_POP();
 }
