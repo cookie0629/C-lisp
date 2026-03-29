@@ -74,7 +74,12 @@ void gc_pop(void) {
 //Allocation
 LispVal* gc_alloc(LispType type) {
     if (!free_list) {
+        size_t before = gc_used_count();
+        printf("[GC] Heap full (%zu objects). Triggering collection...\n", before);
         gc_collect();
+        size_t after = gc_used_count();
+        printf("[GC] Collection done. Reclaimed %zu objects. Used: %zu / %zu\n",
+               before - after, after, heap_capacity);
         if (!free_list) {
             fprintf(stderr, "GC: Out of memory\n");
             exit(1);
@@ -145,4 +150,24 @@ void gc_collect(void) {
 
     /* Sweep unreachable objects */
     sweep();
+}
+
+/* --- Heap Statistics --- */
+
+size_t gc_free_count(void) {
+    size_t n = 0;
+    for (LispVal* p = free_list; p; p = p->data.cons.cdr) n++;
+    return n;
+}
+
+size_t gc_capacity(void) { return heap_capacity; }
+
+size_t gc_used_count(void) { return heap_capacity - gc_free_count(); }
+
+void gc_print_stats(void) {
+    size_t free_n = gc_free_count();
+    size_t used_n = heap_capacity - free_n;
+    printf("[GC] capacity=%zu  used=%zu  free=%zu  (%.1f%% used)\n",
+           heap_capacity, used_n, free_n,
+           heap_capacity ? 100.0 * used_n / heap_capacity : 0.0);
 }

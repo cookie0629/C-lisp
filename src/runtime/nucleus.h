@@ -96,4 +96,8 @@ LispVal* lisp_closure(LispNativeFunc func, LispVal* env);
 LispVal* lisp_thunk(LispNativeFunc func, LispVal* args, LispVal* env);
 LispVal* lisp_trampoline(LispVal* val);
 
+/* GC stats helper — callable from transpiled code via c-stmt */
+void lisp_gc_print_stats(void);
+void lisp_gc_collect(void);
+
 #endif // NUCLEUS_H

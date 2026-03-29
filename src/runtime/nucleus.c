@@ -105,6 +105,9 @@ LispVal* lisp_trampoline(LispVal* val) {
     return val;
 }
 
+void lisp_gc_print_stats(void) { gc_print_stats(); }
+void lisp_gc_collect(void)     { gc_collect(); }
+
 // --- Printer ---
 
 void lisp_print(LispVal* val) {
