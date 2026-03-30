@@ -16,7 +16,8 @@ typedef enum {
     LISP_NIL,
     LISP_T,
     LISP_CLOSURE, // Added Closure type
-    LISP_THUNK
+    LISP_THUNK,
+    LISP_FREE     // Sentinel: slot is on the free list (never a live object)
 } LispType;
 
 // Forward declaration

@@ -30,10 +30,12 @@ void gc_init(size_t object_count) {
         exit(1);
     }
 
-    /* Build free list */
+    /* Build free list and mark all slots as LISP_FREE */
     for (size_t i = 0; i < heap_capacity - 1; i++) {
+        heap[i].type = LISP_FREE;
         heap[i].data.cons.cdr = &heap[i + 1];
     }
+    heap[heap_capacity - 1].type = LISP_FREE;
     heap[heap_capacity - 1].data.cons.cdr = NULL;
 
     free_list = &heap[0];
@@ -44,6 +46,7 @@ void gc_shutdown(void) {
 
     /* Free remaining string data */
     for (size_t i = 0; i < heap_capacity; i++) {
+        if (heap[i].type == LISP_FREE) continue;
         if ((heap[i].type == LISP_STRING || heap[i].type == LISP_SYMBOL) &&
             heap[i].data.str_val) {
             free(heap[i].data.str_val);
@@ -81,7 +84,7 @@ LispVal* gc_alloc(LispType type) {
         printf("[GC] Collection done. Reclaimed %zu objects. Used: %zu / %zu\n",
                before - after, after, heap_capacity);
         if (!free_list) {
-            fprintf(stderr, "GC: Out of memory\n");
+            fprintf(stderr, "[GC] Out of memory after collection\n");
             exit(1);
         }
     }
@@ -99,6 +102,7 @@ LispVal* gc_alloc(LispType type) {
 static void mark(LispVal* obj) {
     if (!obj) return;
     if (obj->marked) return;
+    if (obj->type == LISP_FREE) return;  /* never mark a free slot */
 
     obj->marked = true;
 
@@ -122,11 +126,62 @@ static void mark(LispVal* obj) {
 //Sweep Phase
 static void sweep(void) {
     free_list = NULL;
+    size_t reclaimed = 0;
 
     for (size_t i = 0; i < heap_capacity; i++) {
+        /* Skip slots that were never allocated */
+        if (heap[i].type == LISP_FREE) {
+            heap[i].data.cons.cdr = free_list;
+            free_list = &heap[i];
+            continue;
+        }
+
         if (heap[i].marked) {
             heap[i].marked = false;
         } else {
+            /* --- DEBUG: log every reclaimed object --- */
+#ifdef GC_DEBUG
+            switch (heap[i].type) {
+                case LISP_INT:
+                    printf("[GC][sweep] reclaim INT      = %lld  (addr=%p)\n",
+                           heap[i].data.int_val, (void*)&heap[i]);
+                    break;
+                case LISP_FLOAT:
+                    printf("[GC][sweep] reclaim FLOAT    = %f  (addr=%p)\n",
+                           heap[i].data.float_val, (void*)&heap[i]);
+                    break;
+                case LISP_STRING:
+                    printf("[GC][sweep] reclaim STRING   = \"%s\"  (addr=%p)\n",
+                           heap[i].data.str_val ? heap[i].data.str_val : "",
+                           (void*)&heap[i]);
+                    break;
+                case LISP_SYMBOL:
+                    printf("[GC][sweep] reclaim SYMBOL   = %s  (addr=%p)\n",
+                           heap[i].data.str_val ? heap[i].data.str_val : "",
+                           (void*)&heap[i]);
+                    break;
+                case LISP_CONS:
+                    printf("[GC][sweep] reclaim CONS     (car=%p cdr=%p)  (addr=%p)\n",
+                           (void*)heap[i].data.cons.car,
+                           (void*)heap[i].data.cons.cdr,
+                           (void*)&heap[i]);
+                    break;
+                case LISP_NIL:
+                    printf("[GC][sweep] reclaim NIL      (addr=%p)\n", (void*)&heap[i]);
+                    break;
+                case LISP_T:
+                    printf("[GC][sweep] reclaim T        (addr=%p)\n", (void*)&heap[i]);
+                    break;
+                case LISP_CLOSURE:
+                    printf("[GC][sweep] reclaim CLOSURE  (addr=%p)\n", (void*)&heap[i]);
+                    break;
+                case LISP_THUNK:
+                    printf("[GC][sweep] reclaim THUNK    (addr=%p)\n", (void*)&heap[i]);
+                    break;
+                default: break;
+            }
+#endif /* GC_DEBUG */
+
             /* Free string memory if needed */
             if ((heap[i].type == LISP_STRING || heap[i].type == LISP_SYMBOL) &&
                 heap[i].data.str_val) {
@@ -134,15 +189,26 @@ static void sweep(void) {
                 heap[i].data.str_val = NULL;
             }
 
-            /* Add to free list */
+            /* Mark as free and add to free list */
+            heap[i].type = LISP_FREE;
             heap[i].data.cons.cdr = free_list;
             free_list = &heap[i];
+            reclaimed++;
         }
     }
+
+#ifdef GC_DEBUG
+    printf("[GC][sweep] --- total reclaimed: %zu objects ---\n", reclaimed);
+#endif
 }
 
 //GC Entry Point
 void gc_collect(void) {
+#ifdef GC_DEBUG
+    size_t before = gc_used_count();
+    printf("[GC] ========== Collection START  (live before=%zu) ==========\n", before);
+#endif
+
     /* Mark from roots */
     for (size_t i = 0; i < root_top; i++) {
         mark(*root_stack[i]);
@@ -150,11 +216,18 @@ void gc_collect(void) {
 
     /* Sweep unreachable objects */
     sweep();
+
+#ifdef GC_DEBUG
+    size_t after = gc_used_count();
+    printf("[GC] ========== Collection END    (live after=%zu, reclaimed=%zu) ==========\n",
+           after, before - after);
+#endif
 }
 
 /* --- Heap Statistics --- */
 
 size_t gc_free_count(void) {
+    /* Count slots on the free list (type == LISP_FREE) */
     size_t n = 0;
     for (LispVal* p = free_list; p; p = p->data.cons.cdr) n++;
     return n;

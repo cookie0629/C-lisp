@@ -1,0 +1,215 @@
+(base) PS E:\C-lisp> cd "e:\C-lisp\build" ; cmake --build . 2>&1 | Select-String "error|warning|->|\.c$" | Select-Object -Last 8
+
+  macro.c
+  parser.c
+  gc.c
+  nucleus.c
+  transpiler.c
+  nucleus_core.vcxproj -> E:\C-lisp\build\src\Debug\nucleus_core.lib
+  main.c
+  c-lisp.vcxproj -> E:\C-lisp\build\src\Debug\c-lisp.exe
+
+
+(base) PS E:\C-lisp\build> cd "e:\C-lisp" ; .\build\src\Debug\c-lisp.exe file demo_tree_gc.lisp demo_tree_gc_out.c 2>&1
+[Runtime] Initializing heap with size: 32768 objects
+Parsing file: demo_tree_gc.lisp
+AST generated successfully. Beginning transpilation...
+Transpilation successful. Output written to demo_tree_gc_out.c
+(base) PS E:\C-lisp> gcc demo_tree_gc_out.c src/runtime/nucleus.c src/runtime/gc.c -I src -DGC_DEBUG -o demo_tree_gc_debug.exe 2>&1
+(base) PS E:\C-lisp> Write-Host "--- Running demo ---"
+--- Running demo ---
+(base) PS E:\C-lisp> .\demo_tree_gc_debug.exe 2>&1
+[Runtime] Initializing heap with size: 1048576 objects
+"=== [Step 1] Initial heap state ==="
+[GC] capacity=1048576  used=2  free=1048574  (0.0% used)
+"=== [Step 2] Building 8-node binary tree ==="
+"Tree built. Root value:"
+0
+"Left child value:"
+1
+"Right child value:"
+2
+"Left-Left child value:"
+3
+"=== [Step 3] Heap state AFTER building tree ==="
+[GC] capacity=1048576  used=56  free=1048520  (0.0% used)
+"=== [Step 4] Dropping all references (cutting the root) ==="
+"All references set to nil -- tree is now unreachable garbage."
+"=== [Step 5] Forcing GC -- watch the sweep log below ==="
+[GC] ========== Collection START  (live before=72) ==========
+[GC][sweep] reclaim STRING   = "=== [Step 1] Initial heap state ==="  (addr=0000000000C4B040)
+[GC][sweep] reclaim T        (addr=0000000000C4B060)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B080)
+[GC][sweep] reclaim STRING   = "=== [Step 2] Building 8-node binary tree ==="  (addr=0000000000C4B0A0)
+[GC][sweep] reclaim T        (addr=0000000000C4B0C0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B0E0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B100)
+[GC][sweep] reclaim CONS     (car=0000000000C4B100 cdr=0000000000C4B0E0)  (addr=0000000000C4B120)
+[GC][sweep] reclaim INT      = 7  (addr=0000000000C4B140)
+[GC][sweep] reclaim CONS     (car=0000000000C4B140 cdr=0000000000C4B120)  (addr=0000000000C4B160)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B180)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B1A0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B1A0 cdr=0000000000C4B180)  (addr=0000000000C4B1C0)
+[GC][sweep] reclaim INT      = 8  (addr=0000000000C4B1E0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B1E0 cdr=0000000000C4B1C0)  (addr=0000000000C4B200)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B220)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B240)
+[GC][sweep] reclaim CONS     (car=0000000000C4B240 cdr=0000000000C4B220)  (addr=0000000000C4B260)
+[GC][sweep] reclaim INT      = 4  (addr=0000000000C4B280)
+[GC][sweep] reclaim CONS     (car=0000000000C4B280 cdr=0000000000C4B260)  (addr=0000000000C4B2A0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B2C0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B2E0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B2E0 cdr=0000000000C4B2C0)  (addr=0000000000C4B300)
+[GC][sweep] reclaim INT      = 5  (addr=0000000000C4B320)
+[GC][sweep] reclaim CONS     (car=0000000000C4B320 cdr=0000000000C4B300)  (addr=0000000000C4B340)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B360)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B380)
+[GC][sweep] reclaim CONS     (car=0000000000C4B380 cdr=0000000000C4B360)  (addr=0000000000C4B3A0)
+[GC][sweep] reclaim INT      = 6  (addr=0000000000C4B3C0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B3C0 cdr=0000000000C4B3A0)  (addr=0000000000C4B3E0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B160 cdr=0000000000C4B200)  (addr=0000000000C4B400)
+[GC][sweep] reclaim INT      = 3  (addr=0000000000C4B420)
+[GC][sweep] reclaim CONS     (car=0000000000C4B420 cdr=0000000000C4B400)  (addr=0000000000C4B440)
+[GC][sweep] reclaim CONS     (car=0000000000C4B340 cdr=0000000000C4B3E0)  (addr=0000000000C4B460)
+[GC][sweep] reclaim INT      = 2  (addr=0000000000C4B480)
+[GC][sweep] reclaim CONS     (car=0000000000C4B480 cdr=0000000000C4B460)  (addr=0000000000C4B4A0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B440 cdr=0000000000C4B2A0)  (addr=0000000000C4B4C0)
+[GC][sweep] reclaim INT      = 1  (addr=0000000000C4B4E0)
+[GC][sweep] reclaim CONS     (car=0000000000C4B4E0 cdr=0000000000C4B4C0)  (addr=0000000000C4B500)
+[GC][sweep] reclaim CONS     (car=0000000000C4B500 cdr=0000000000C4B4A0)  (addr=0000000000C4B520)
+[GC][sweep] reclaim INT      = 0  (addr=0000000000C4B540)
+[GC][sweep] reclaim CONS     (car=0000000000C4B540 cdr=0000000000C4B520)  (addr=0000000000C4B560)
+[GC][sweep] reclaim STRING   = "Tree built. Root value:"  (addr=0000000000C4B580)
+[GC][sweep] reclaim T        (addr=0000000000C4B5A0)
+[GC][sweep] reclaim T        (addr=0000000000C4B5C0)
+[GC][sweep] reclaim STRING   = "Left child value:"  (addr=0000000000C4B5E0)
+[GC][sweep] reclaim T        (addr=0000000000C4B600)
+[GC][sweep] reclaim T        (addr=0000000000C4B620)
+[GC][sweep] reclaim STRING   = "Right child value:"  (addr=0000000000C4B640)
+[GC][sweep] reclaim T        (addr=0000000000C4B660)
+[GC][sweep] reclaim T        (addr=0000000000C4B680)
+[GC][sweep] reclaim STRING   = "Left-Left child value:"  (addr=0000000000C4B6A0)
+[GC][sweep] reclaim T        (addr=0000000000C4B6C0)
+[GC][sweep] reclaim T        (addr=0000000000C4B6E0)
+[GC][sweep] reclaim STRING   = "=== [Step 3] Heap state AFTER building tree ==="  (addr=0000000000C4B700)
+[GC][sweep] reclaim T        (addr=0000000000C4B720)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B740)
+[GC][sweep] reclaim STRING   = "=== [Step 4] Dropping all references (cutting the root) ==="  (addr=0000000000C4B760)
+[GC][sweep] reclaim T        (addr=0000000000C4B780)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B7A0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B7C0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B7E0)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B800)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B820)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B840)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B860)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B880)
+[GC][sweep] reclaim NIL      (addr=0000000000C4B8A0)
+[GC][sweep] reclaim STRING   = "All references set to nil -- tree is now unreachable garbage."  (addr=0000000000C4B8C0)
+[GC][sweep] reclaim T        (addr=0000000000C4B8E0)
+[GC][sweep] reclaim STRING   = "=== [Step 5] Forcing GC -- watch the sweep log below ==="  (addr=0000000000C4B900)
+[GC][sweep] reclaim T        (addr=0000000000C4B920)
+[GC][sweep] --- total reclaimed: 72 objects ---
+[GC] ========== Collection END    (live after=0, reclaimed=72) ==========
+"=== [Step 6] Heap state AFTER GC ==="
+[GC] capacity=1048576  used=3  free=1048573  (0.0% used)
+"=== [Step 7] Allocating after GC -- heap is healthy ==="
+300
+(base) PS E:\C-lisp> .\demo_tree_gc_debug.exe
+[Runtime] Initializing heap with size: 1048576 objects
+"=== [Step 1] Initial heap state ==="
+[GC] capacity=1048576  used=2  free=1048574  (0.0% used)
+"=== [Step 2] Building 8-node binary tree ==="
+"Tree built. Root value:"
+0
+"Left child value:"
+1
+"Right child value:"
+2
+"Left-Left child value:"
+3
+"=== [Step 3] Heap state AFTER building tree ==="
+[GC] capacity=1048576  used=56  free=1048520  (0.0% used)
+"=== [Step 4] Dropping all references (cutting the root) ==="
+"All references set to nil -- tree is now unreachable garbage."
+"=== [Step 5] Forcing GC -- watch the sweep log below ==="
+[GC] ========== Collection START  (live before=72) ==========
+[GC][sweep] reclaim STRING   = "=== [Step 1] Initial heap state ==="  (addr=0000000000B3D040)
+[GC][sweep] reclaim T        (addr=0000000000B3D060)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D080)
+[GC][sweep] reclaim STRING   = "=== [Step 2] Building 8-node binary tree ==="  (addr=0000000000B3D0A0)
+[GC][sweep] reclaim T        (addr=0000000000B3D0C0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D0E0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D100)
+[GC][sweep] reclaim CONS     (car=0000000000B3D100 cdr=0000000000B3D0E0)  (addr=0000000000B3D120)
+[GC][sweep] reclaim INT      = 7  (addr=0000000000B3D140)
+[GC][sweep] reclaim CONS     (car=0000000000B3D140 cdr=0000000000B3D120)  (addr=0000000000B3D160)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D180)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D1A0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D1A0 cdr=0000000000B3D180)  (addr=0000000000B3D1C0)
+[GC][sweep] reclaim INT      = 8  (addr=0000000000B3D1E0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D1E0 cdr=0000000000B3D1C0)  (addr=0000000000B3D200)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D220)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D240)
+[GC][sweep] reclaim CONS     (car=0000000000B3D240 cdr=0000000000B3D220)  (addr=0000000000B3D260)
+[GC][sweep] reclaim INT      = 4  (addr=0000000000B3D280)
+[GC][sweep] reclaim CONS     (car=0000000000B3D280 cdr=0000000000B3D260)  (addr=0000000000B3D2A0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D2C0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D2E0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D2E0 cdr=0000000000B3D2C0)  (addr=0000000000B3D300)
+[GC][sweep] reclaim INT      = 5  (addr=0000000000B3D320)
+[GC][sweep] reclaim CONS     (car=0000000000B3D320 cdr=0000000000B3D300)  (addr=0000000000B3D340)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D360)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D380)
+[GC][sweep] reclaim CONS     (car=0000000000B3D380 cdr=0000000000B3D360)  (addr=0000000000B3D3A0)
+[GC][sweep] reclaim INT      = 6  (addr=0000000000B3D3C0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D3C0 cdr=0000000000B3D3A0)  (addr=0000000000B3D3E0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D160 cdr=0000000000B3D200)  (addr=0000000000B3D400)
+[GC][sweep] reclaim INT      = 3  (addr=0000000000B3D420)
+[GC][sweep] reclaim CONS     (car=0000000000B3D420 cdr=0000000000B3D400)  (addr=0000000000B3D440)
+[GC][sweep] reclaim CONS     (car=0000000000B3D340 cdr=0000000000B3D3E0)  (addr=0000000000B3D460)
+[GC][sweep] reclaim INT      = 2  (addr=0000000000B3D480)
+[GC][sweep] reclaim CONS     (car=0000000000B3D480 cdr=0000000000B3D460)  (addr=0000000000B3D4A0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D440 cdr=0000000000B3D2A0)  (addr=0000000000B3D4C0)
+[GC][sweep] reclaim INT      = 1  (addr=0000000000B3D4E0)
+[GC][sweep] reclaim CONS     (car=0000000000B3D4E0 cdr=0000000000B3D4C0)  (addr=0000000000B3D500)
+[GC][sweep] reclaim CONS     (car=0000000000B3D500 cdr=0000000000B3D4A0)  (addr=0000000000B3D520)
+[GC][sweep] reclaim INT      = 0  (addr=0000000000B3D540)
+[GC][sweep] reclaim CONS     (car=0000000000B3D540 cdr=0000000000B3D520)  (addr=0000000000B3D560)
+[GC][sweep] reclaim STRING   = "Tree built. Root value:"  (addr=0000000000B3D580)
+[GC][sweep] reclaim T        (addr=0000000000B3D5A0)
+[GC][sweep] reclaim T        (addr=0000000000B3D5C0)
+[GC][sweep] reclaim STRING   = "Left child value:"  (addr=0000000000B3D5E0)
+[GC][sweep] reclaim T        (addr=0000000000B3D600)
+[GC][sweep] reclaim T        (addr=0000000000B3D620)
+[GC][sweep] reclaim STRING   = "Right child value:"  (addr=0000000000B3D640)
+[GC][sweep] reclaim T        (addr=0000000000B3D660)
+[GC][sweep] reclaim T        (addr=0000000000B3D680)
+[GC][sweep] reclaim STRING   = "Left-Left child value:"  (addr=0000000000B3D6A0)
+[GC][sweep] reclaim T        (addr=0000000000B3D6C0)
+[GC][sweep] reclaim T        (addr=0000000000B3D6E0)
+[GC][sweep] reclaim STRING   = "=== [Step 3] Heap state AFTER building tree ==="  (addr=0000000000B3D700)
+[GC][sweep] reclaim T        (addr=0000000000B3D720)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D740)
+[GC][sweep] reclaim STRING   = "=== [Step 4] Dropping all references (cutting the root) ==="  (addr=0000000000B3D760)
+[GC][sweep] reclaim T        (addr=0000000000B3D780)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D7A0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D7C0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D7E0)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D800)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D820)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D840)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D860)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D880)
+[GC][sweep] reclaim NIL      (addr=0000000000B3D8A0)
+[GC][sweep] reclaim STRING   = "All references set to nil -- tree is now unreachable garbage."  (addr=0000000000B3D8C0)
+[GC][sweep] reclaim T        (addr=0000000000B3D8E0)
+[GC][sweep] reclaim STRING   = "=== [Step 5] Forcing GC -- watch the sweep log below ==="  (addr=0000000000B3D900)
+[GC][sweep] reclaim T        (addr=0000000000B3D920)
+[GC][sweep] --- total reclaimed: 72 objects ---
+[GC] ========== Collection END    (live after=0, reclaimed=72) ==========
+"=== [Step 6] Heap state AFTER GC ==="
+[GC] capacity=1048576  used=3  free=1048573  (0.0% used)
+"=== [Step 7] Allocating after GC -- heap is healthy ==="
+300
+(base) PS E:\C-lisp> 
